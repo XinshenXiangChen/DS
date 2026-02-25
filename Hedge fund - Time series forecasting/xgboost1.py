@@ -32,22 +32,17 @@ def preprocess_data(df, encoders=None, is_train=True):
 
     return df, encoders
 
+train_df = pd.read_parquet('data/train.parquet')
 
-# --- 2. THE FIT CODE ---
 
-# Load data (Assuming .parquet based on description)
-train_df = pd.read_parquet('train.parquet')
-
-# Preprocess
 train_df, encoders = preprocess_data(train_df, is_train=True)
 
-# Define features (Drop the ones the rules forbid using as features)
-features = [c for c in train_df.columns if c not in ['id', 'target', 'weight', 'ts_index']]
-target = 'target'
+
+features = [c for c in train_df.columns if c not in ['id', 'y_target', 'weight', 'ts_index']]
+target = 'y_target'
 weights = 'weight'
 
-# Time-Series Split: Use the last 20% of ts_index for validation
-# This mimics the "hidden" test set period.
+
 split_point = train_df['ts_index'].quantile(0.8)
 train_split = train_df[train_df['ts_index'] <= split_point]
 val_split = train_df[train_df['ts_index'] > split_point]
@@ -61,7 +56,8 @@ model = XGBRegressor(
     colsample_bytree=0.7,
     n_jobs=-1,
     tree_method='hist',  # Fast for 6-hour limit
-    random_state=42
+    random_state=42,
+    early_stopping_rounds=100
 )
 
 model.fit(
@@ -70,24 +66,21 @@ model.fit(
     sample_weight=train_split[weights],
     eval_set=[(val_split[features], val_split[target])],
     sample_weight_eval_set=[val_split[weights]],
-    early_stopping_rounds=100,
     verbose=100
 )
 
-# --- 3. THE PREDICTION CODE ---
 
-test_df = pd.read_parquet('test.parquet')
+test_df = pd.read_parquet('data/test.parquet')
 test_processed, _ = preprocess_data(test_df, encoders=encoders, is_train=False)
 
-# Generate predictions
 test_predictions = model.predict(test_processed[features])
 
-# Create the submission file in the exact requested format
+
 submission = pd.DataFrame({
     'id': test_df['id'],
     'prediction': test_predictions
 })
 
 # Save to CSV
-submission.to_csv('submission.csv', index=False, sep=';')
+submission.to_csv('submission.csv', index=False)
 print("Submission file saved successfully!")
