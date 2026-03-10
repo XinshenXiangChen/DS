@@ -56,9 +56,19 @@ def run_prediction():
                 pred = model(x_tensor).cpu().item()
                 all_preds.append(pred)
 
-    # 5. Save Final Submission
+    # 5. Attach predictions to DataFrame
+    if len(all_preds) != len(test_df):
+        raise ValueError(f"Number of predictions ({len(all_preds)}) "
+                         f"does not match number of rows in test_df ({len(test_df)}).")
+
     test_df['prediction'] = all_preds
     submission = test_df[['id', 'prediction']]
+
+    # Quick sanity check: show a few rows
+    print("\nSample predictions:")
+    print(submission.head().to_string(index=False))
+
+    # 6. Save Final Submission
     submission.to_csv('submission.csv', index=False)
     print("\n✅ Success! Predictions saved to submission.csv")
 
